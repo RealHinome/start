@@ -1,0 +1,91 @@
+"""blabla - description"""
+
+module(
+    name = "blabla",
+    version = "1.0",
+)
+
+bazel_dep(name = "platforms", version = "0.0.8")
+bazel_dep(name = "bazel_skylib", version = "1.5.0")
+
+# Rust support.
+bazel_dep(name = "rules_rust", version = "0.40.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(edition = "2021")
+use_repo(
+    rust,
+    "rust_toolchains",
+)
+
+register_toolchains("@rust_toolchains//:all")
+
+crate = use_extension(
+    "@rules_rust//crate_universe:extension.bzl",
+    "crate",
+)
+crate.from_cargo(
+    name = "crate_index",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = [
+        "//:Cargo.toml",
+        "//crates/blabla:Cargo.toml",
+    ],
+)
+use_repo(crate, "crate_index")
+
+# Node support.
+bazel_dep(name = "aspect_rules_js", version = "1.38.0")
+bazel_dep(name = "rules_nodejs", version = "6.0.5")
+bazel_dep(name = "aspect_rules_ts", version = "2.2.0")
+
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "18.8.0")
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm", dev_dependency = True)
+npm.npm_translate_lock(
+    name = "npm",
+    npmrc = "//front:.npmrc",
+    pnpm_lock = "//front:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+use_repo(npm, "npm")
+
+rules_ts_ext = use_extension(
+    "@aspect_rules_ts//ts:extensions.bzl",
+    "ext",
+    dev_dependency = True,
+)
+rules_ts_ext.deps()
+use_repo(rules_ts_ext, "npm_typescript")
+
+# OCI support.
+bazel_dep(name = "rules_pkg", version = "0.10.1")
+bazel_dep(name = "rules_oci", version = "1.7.4")
+bazel_dep(name = "aspect_bazel_lib", version = "1.36.0")
+
+git_override(
+    module_name = "rules_oci",
+    commit = "e060819b2b19dd827f255900068e134b4914ff63",
+    remote = "https://github.com/archen/rules_oci",
+)
+
+ext = use_extension("@aspect_bazel_lib//lib:extensions.bzl", "toolchains")
+use_repo(ext, "yq_toolchains")  # For checksum verification
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.toolchains(
+    name = "oci",
+    crane_version = "v0.15.2",
+)
+
+oci.pull(
+    name = "distroless_cc",
+    digest = "sha256:a9056d2232d16e3772bec3ef36b93a5ea9ef6ad4b4ed407631e534b85832cf40",
+    image = "gcr.io/distroless/cc-debian12",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64/v8",
+    ],
+)
+use_repo(oci, "distroless_cc")
